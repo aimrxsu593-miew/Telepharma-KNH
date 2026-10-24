@@ -72,8 +72,8 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
   // ===== ตั้งค่า 2 ค่านี้ก่อนนำขึ้นเว็บ =====
-  const LIFF_ID = 'YOUR_LIFF_ID';                 // จากแท็บ LIFF ของ LINE Login channel
-  const API_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL'; // URL ของ Web app (ลงท้ายด้วย /exec)
+  const LIFF_ID = '2012187336-JO1sd8FF';                 // จากแท็บ LIFF ของ LINE Login channel
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxzI5trnlUf43bjj3yK2czZnFCLDAUAR9DUXehiqFNy6vZIvT8p59fG_0PyTVxDwrThBw/exec'; // URL ของ Web app (ลงท้ายด้วย /exec)
   const DEMO = true;                              // true = แสดงกล่องแนะนำชุดข้อมูลทดสอบ
   // ==========================================
 
@@ -96,7 +96,7 @@
   async function init() {
     if (DEMO) $('demo').hidden = false;
     try {
-      await liff.init({ liffId: LIFF_ID });
+      await liff.init({ liffId: 2012187336-JO1sd8FF });
       if (!liff.isInClient()) {
         go.textContent = 'ตรวจสอบ';
         show('กรุณาเปิดแบบฟอร์มนี้จากเมนูในแชท LINE ของ Telepharma.KNH', 'err');
