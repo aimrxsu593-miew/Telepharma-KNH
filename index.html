@@ -69,10 +69,20 @@
   </div>
 </main>
 
+<script>
+  // แสดงข้อผิดพลาดของสคริปต์บนหน้าเว็บ (รวมถึงกรณีแก้ค่า LIFF_ID/API_URL แล้วเครื่องหมายคำพูดผิด)
+  window.addEventListener('error', function (e) {
+    var m = document.getElementById('msg');
+    if (m) {
+      m.className = 'err';
+      m.textContent = 'ข้อผิดพลาดของหน้าเว็บ: ' + (e.message || 'ไม่ทราบสาเหตุ') + ' (บรรทัด ' + (e.lineno || '?') + ')';
+    }
+  });
+</script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
   // ===== ตั้งค่า 2 ค่านี้ก่อนนำขึ้นเว็บ =====
-  const LIFF_ID = '2012187336-JO1sd8FF; // จากแท็บ LIFF ของ LINE Login channel
+  const LIFF_ID = '2012187336-JO1sd8FF';                 // จากแท็บ LIFF ของ LINE Login channel
   const API_URL = 'https://script.google.com/macros/s/AKfycbygQm7YNIyBC-n1yH7ydwNjmLRJPpfGUlRM4Nvtf3XRnBAX0ERqk-bpG7SUIo5352f3Hg/exec'; // URL ของ Web app (ลงท้ายด้วย /exec)
   const DEMO = true;                              // true = แสดงกล่องแนะนำชุดข้อมูลทดสอบ
   // ==========================================
@@ -95,8 +105,23 @@
 
   async function init() {
     if (DEMO) $('demo').hidden = false;
+
+    if (LIFF_ID.indexOf('YOUR_') === 0 || API_URL.indexOf('YOUR_') === 0) {
+      go.textContent = 'ตรวจสอบ';
+      show('ยังไม่ได้ตั้งค่า LIFF_ID หรือ API_URL ในไฟล์ index.html', 'err');
+      return;
+    }
+
+    // ถ้า LIFF เริ่มไม่เสร็จใน 10 วินาที ให้บอกสาเหตุที่น่าจะเป็น แทนการค้างเงียบๆ
+    const timer = setTimeout(() => {
+      if (go.disabled) {
+        show('เริ่มระบบนานผิดปกติ ตรวจสอบว่า LIFF_ID ถูกต้อง และ Endpoint URL ใน LIFF ตรงกับ URL ของหน้านี้ทุกตัวอักษร', 'err');
+      }
+    }, 10000);
+
     try {
-      await liff.init({ liffId: 2012187336-JO1sd8FF });
+      await liff.init({ liffId: LIFF_ID });
+      clearTimeout(timer);
       if (!liff.isInClient()) {
         go.textContent = 'ตรวจสอบ';
         show('กรุณาเปิดแบบฟอร์มนี้จากเมนูในแชท LINE ของ Telepharma.KNH', 'err');
@@ -105,9 +130,11 @@
       if (!liff.isLoggedIn()) { liff.login(); return; }
       go.disabled = false;
       go.textContent = 'ตรวจสอบ';
+      show('');
     } catch (e) {
+      clearTimeout(timer);
       go.textContent = 'ตรวจสอบ';
-      show('เปิดแบบฟอร์มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'err');
+      show('เปิดแบบฟอร์มไม่สำเร็จ: ' + (e && e.message ? e.message : e), 'err');
     }
   }
 
