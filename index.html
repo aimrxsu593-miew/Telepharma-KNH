@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Telepharma.KNH — ตรวจสอบสถานะยา</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #1f2933; --muted: #6b7785;
+    --line: #d5dbe1; --brand: #06c755; --brand-dark: #05a647; --err: #c62828; --ok: #067a36;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161a; --card: #1c2228; --text: #e8edf2; --muted: #9aa7b4;
+      --line: #36404a; --err: #ff8a80; --ok: #5fdc90;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", "Sarabun", sans-serif; }
+  body { padding: env(safe-area-inset-top, 0) 16px env(safe-area-inset-bottom, 0); }
+  main { max-width: 440px; margin: 0 auto; padding: 24px 0; }
+  .card { background: var(--card); border-radius: 16px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 18px; line-height: 1.5; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+  input { width: 100%; font-size: 18px; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: transparent; color: var(--text); }
+  input:focus { outline: 2px solid var(--brand); border-color: var(--brand); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  button { width: 100%; margin-top: 22px; padding: 14px; font-size: 17px; font-weight: 600;
+    border: 0; border-radius: 10px; background: var(--brand); color: #fff; cursor: pointer; }
+  button:active { background: var(--brand-dark); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  #msg { min-height: 22px; margin-top: 14px; font-size: 14px; line-height: 1.5; }
+  .err { color: var(--err); } .ok { color: var(--ok); }
+  .privacy { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .demo { margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px;
+    background: rgba(245,166,35,.15); color: var(--text); line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>ตรวจสอบสถานะยา</h1>
+    <p class="sub">กรอกข้อมูลเพื่อยืนยันตัวตน ข้อมูลที่กรอกในหน้านี้จะไม่ปรากฏในกล่องข้อความแชท</p>
+
+    <form id="f" autocomplete="off" novalidate>
+      <label for="phone">เบอร์โทรศัพท์</label>
+      <input id="phone" type="tel" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="0812345678">
+
+      <label for="last4">เลขบัตรประชาชน 4 ตัวท้าย</label>
+      <input id="last4" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="4" placeholder="••••">
+      <div class="hint">กรอกเฉพาะ 4 ตัวท้ายเท่านั้น</div>
+
+      <button id="go" type="submit" disabled>กำลังเตรียมระบบ…</button>
+    </form>
+
+    <div id="msg" role="status" aria-live="polite"></div>
+    <div id="demo" class="demo" hidden>
+      เดโมสำหรับงาน PRIS2026 — ใช้ข้อมูลสมมติเท่านั้น<br>
+      ชุดทดสอบ: เบอร์ 000000000N คู่กับเลข NNNN (N = 1 ถึง 6) เช่น 0000000003 และ 3333
+    </div>
+    <p class="privacy">
+      ข้อมูลถูกส่งผ่านการเชื่อมต่อที่เข้ารหัสเพื่อตรวจสอบกับรายการจัดส่งยาเท่านั้น
+      ระบบไม่บันทึก LINE ID ของท่าน
+    </p>
+  </div>
+</main>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+  // ===== ตั้งค่า 2 ค่านี้ก่อนนำขึ้นเว็บ =====
+  const LIFF_ID = 'YOUR_LIFF_ID';                 // จากแท็บ LIFF ของ LINE Login channel
+  const API_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL'; // URL ของ Web app (ลงท้ายด้วย /exec)
+  const DEMO = true;                              // true = แสดงกล่องแนะนำชุดข้อมูลทดสอบ
+  // ==========================================
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('f'), go = $('go'), msg = $('msg');
+
+  const ERRORS = {
+    format: 'รูปแบบข้อมูลไม่ถูกต้อง กรุณาตรวจสอบเบอร์โทรและเลขบัตร 4 ตัวท้าย',
+    notfound: 'ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจสอบเบอร์โทรและเลขบัตร 4 ตัวท้ายอีกครั้ง',
+    blocked: 'กรอกข้อมูลไม่ถูกต้องหลายครั้งเกินไป กรุณารอประมาณ 10 นาทีแล้วลองใหม่',
+    auth: 'ยืนยันตัวตนกับ LINE ไม่สำเร็จ กรุณาปิดแล้วเปิดแบบฟอร์มจากเมนูในแชทใหม่',
+    server: 'ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง',
+  };
+
+  function show(text, cls) {
+    msg.className = cls || '';
+    msg.textContent = text;
+  }
+
+  async function init() {
+    if (DEMO) $('demo').hidden = false;
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isInClient()) {
+        go.textContent = 'ตรวจสอบ';
+        show('กรุณาเปิดแบบฟอร์มนี้จากเมนูในแชท LINE ของ Telepharma.KNH', 'err');
+        return;
+      }
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+      go.disabled = false;
+      go.textContent = 'ตรวจสอบ';
+    } catch (e) {
+      go.textContent = 'ตรวจสอบ';
+      show('เปิดแบบฟอร์มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'err');
+    }
+  }
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const phone = $('phone').value.replace(/\D/g, '');
+    const last4 = $('last4').value.replace(/\D/g, '');
+    if (phone.length < 9 || phone.length > 10 || last4.length !== 4) {
+      show(ERRORS.format, 'err');
+      return;
+    }
+
+    go.disabled = true;
+    show('กำลังตรวจสอบ…');
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // หลีกเลี่ยง CORS preflight ของ Apps Script
+        body: JSON.stringify({ action: 'verify', phone, last4, idToken: liff.getIDToken() }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        show(ERRORS[data.error] || ERRORS.server, 'err');
+        go.disabled = false;
+        return;
+      }
+
+      // ส่งเฉพาะรหัสใช้ครั้งเดียวเข้าแชท (ไม่มีข้อมูลส่วนตัว)
+      await liff.sendMessages([{ type: 'text', text: 'ยืนยันตัวตนแล้ว รหัส ' + data.code }]);
+      $('phone').value = '';
+      $('last4').value = '';
+      show('ยืนยันสำเร็จ กำลังกลับไปที่แชท…', 'ok');
+      setTimeout(() => liff.closeWindow(), 700);
+    } catch (e) {
+      show(ERRORS.server, 'err');
+      go.disabled = false;
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>
