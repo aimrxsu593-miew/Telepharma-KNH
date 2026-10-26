@@ -33,6 +33,8 @@
     border: 0; border-radius: 10px; background: var(--brand); color: #fff; cursor: pointer; }
   button:active { background: var(--brand-dark); }
   button:disabled { opacity: .55; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); margin-top: 12px; }
+  button.ghost:active { background: transparent; opacity: .7; }
   #msg { min-height: 22px; margin-top: 14px; font-size: 14px; line-height: 1.5; }
   .err { color: var(--err); } .ok { color: var(--ok); }
   .privacy { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -58,6 +60,7 @@
     </form>
 
     <div id="msg" role="status" aria-live="polite"></div>
+    <button id="help" type="button" class="ghost" hidden>ติดต่อแอดมิน</button>
     <div id="demo" class="demo" hidden>
       เดโมสำหรับงาน PRIS2026 — ใช้ข้อมูลสมมติเท่านั้น<br>
       ชุดทดสอบ: เบอร์ 000000000N คู่กับเลข NNNN (N = 1 ถึง 6) เช่น 0000000003 และ 3333
@@ -66,6 +69,7 @@
       ข้อมูลถูกส่งผ่านการเชื่อมต่อที่เข้ารหัสเพื่อตรวจสอบกับรายการจัดส่งยาเท่านั้น
       ระบบไม่บันทึก LINE ID ของท่าน
     </p>
+    <p id="diag" class="privacy" hidden></p>
   </div>
 </main>
 
@@ -83,8 +87,9 @@
 <script>
   // ===== ตั้งค่า 2 ค่านี้ก่อนนำขึ้นเว็บ =====
   const LIFF_ID = '2012187336-JO1sd8FF';                 // จากแท็บ LIFF ของ LINE Login channel
-  const API_URL = 'https://script.google.com/macros/s/AKfycbxI3GgCsB5NWoGclWb4GYFIpPaI9bcMozYzH6HdFyvaBvDCdrOSN237u0S43U-qOE3jUg/exec'; // URL ของ Web app (ลงท้ายด้วย /exec)
-  const DEMO = true;                              // true = แสดงกล่องแนะนำชุดข้อมูลทดสอบ
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzG9fTCynjEBYa_70nB7G6La4A5a0VHJpJEX5cV9eqEx27Oed7EnKTuMVMXaLkFefNteA/exec'; // URL ของ Web app (ลงท้ายด้วย /exec)
+  const DEMO = false;
+  const SHOW_DIAG = false;                         // true = แสดงบรรทัดตรวจสอบเวอร์ชัน/URL ท้ายหน้า (ปิดเมื่อใช้งานจริง)                              // true = แสดงกล่องแนะนำชุดข้อมูลทดสอบ
   // ==========================================
 
   const $ = (id) => document.getElementById(id);
@@ -92,11 +97,19 @@
 
   const ERRORS = {
     format: 'รูปแบบข้อมูลไม่ถูกต้อง กรุณาตรวจสอบเบอร์โทรและเลขบัตร 4 ตัวท้าย',
-    notfound: 'ไม่พบข้อมูลที่ตรงกัน กรุณาตรวจสอบเบอร์โทรและเลขบัตร 4 ตัวท้ายอีกครั้ง',
+    notfound: 'ไม่พบข้อมูลการจัดส่ง ตรวจสอบเบอร์โทรศัพท์ เลขประชาชน 4 ตัวท้าย หรือติดต่อแอดมิน',
     blocked: 'กรอกข้อมูลไม่ถูกต้องหลายครั้งเกินไป กรุณารอประมาณ 10 นาทีแล้วลองใหม่',
     auth: 'ยืนยันตัวตนกับ LINE ไม่สำเร็จ กรุณาปิดแล้วเปิดแบบฟอร์มจากเมนูในแชทใหม่',
     server: 'ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง',
   };
+
+  function diag(t) {
+    if (!SHOW_DIAG) return;
+    const el = $('diag');
+    el.hidden = false;
+    el.textContent = 'v3 · ' + location.origin + location.pathname +
+      ' · SDK ' + (window.liff ? 'โหลดแล้ว' : 'ไม่โหลด') + (t ? ' · ' + t : '');
+  }
 
   function show(text, cls) {
     msg.className = cls || '';
@@ -120,8 +133,10 @@
     }, 10000);
 
     try {
+      diag('กำลังเริ่ม LIFF');
       await liff.init({ liffId: LIFF_ID });
       clearTimeout(timer);
+      diag('LIFF พร้อม · ในแอป LINE = ' + liff.isInClient());
       if (!liff.isInClient()) {
         go.textContent = 'ตรวจสอบ';
         show('กรุณาเปิดแบบฟอร์มนี้จากเมนูในแชท LINE ของ Telepharma.KNH', 'err');
@@ -133,6 +148,7 @@
       show('');
     } catch (e) {
       clearTimeout(timer);
+      diag('LIFF ผิดพลาด');
       go.textContent = 'ตรวจสอบ';
       show('เปิดแบบฟอร์มไม่สำเร็จ: ' + (e && e.message ? e.message : e), 'err');
     }
@@ -148,6 +164,7 @@
     }
 
     go.disabled = true;
+    $('help').hidden = true;
     show('กำลังตรวจสอบ…');
     try {
       const res = await fetch(API_URL, {
@@ -158,6 +175,7 @@
       const data = await res.json();
 
       if (!data.ok) {
+        if (data.error === 'notfound') $('help').hidden = false;
         show(ERRORS[data.error] || ERRORS.server, 'err');
         go.disabled = false;
         return;
@@ -175,6 +193,19 @@
     }
   });
 
+  // ไม่พบข้อมูล: ส่งข้อความสั้นๆ (ไม่มีข้อมูลส่วนตัว) เข้าแชทเพื่อให้บอทตอบ Flex ช่วยเหลือ
+  $('help').addEventListener('click', async () => {
+    $('help').disabled = true;
+    try {
+      await liff.sendMessages([{ type: 'text', text: 'ไม่พบข้อมูลการจัดส่ง' }]);
+      liff.closeWindow();
+    } catch (e) {
+      $('help').disabled = false;
+      show(ERRORS.server, 'err');
+    }
+  });
+
+  diag('เริ่มสคริปต์แล้ว');
   init();
 </script>
 </body>
